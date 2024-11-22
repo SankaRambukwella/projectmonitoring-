@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Project Monitoring Web App</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="container mt-4">
+    <h2 class="text-center">Building Branch Project Monitoring Dashboard</h2>
+    
+    <!-- Summary Section -->
+    <div id="summary" class="alert alert-info">
+        <strong>Summary:</strong> Total Projects: <span id="totalProjects">0</span> | Overdue Projects: <span id="overdueProjects">0</span>
+    </div>
+
+    <!-- Form to Add Project -->
+    <div class="mb-4">
+        <input type="text" id="projectName" class="form-control mb-2" placeholder="Enter Project Name">
+        <input type="date" id="startDate" class="form-control mb-2">
+        <select id="statusSelect" class="form-select mb-2">
+            <option value="Estimate">Estimate (7 days)</option>
+            <option value="Bidding Documents">Bidding Documents (7 days)</option>
+            <option value="Procurement Schedule">Procurement Schedule (5 days)</option>
+            <option value="Bid Document Evaluation">Bid Document Evaluation (21 days)</option>
+            <option value="Bid Invitation">Bid Invitation (5 days)</option>
+            <option value="Bid Document Hand Over">Bid Document Hand Over (14 days)</option>
+            <option value="Bid Opening & Committee Minute">Bid Opening & Committee Minute (3 days)</option>
+            <option value="Send to TEC">Send to TEC (2 days)</option>
+            <option value="TEC Report">TEC Report (14 days)</option>
+            <option value="Send Procurement Branch">Send Procurement Branch (2 days)</option>
+            <option value="Procurement Approval">Procurement Approval (14 days)</option>
+        </select>
+        <button id="addProjectBtn" class="btn btn-primary">Add Project</button>
+    </div>
+
+    <!-- Project Table -->
+    <div class="table-responsive">
+        <table class="table table-bordered">
+            <thead class="table-dark">
+                <tr>
+                    <th>#</th>
+                    <th>Project</th>
+                    <th>Start Date</th>
+                    <th>Status</th>
+                    <th>Deadline</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody id="projectRows"></tbody>
+        </table>
+    </div>
+
+    <!-- Pagination -->
+    <nav>
+        <ul class="pagination justify-content-center">
+            <li class="page-item"><a class="page-link" href="#" id="prevPage">Previous</a></li>
+            <li class="page-item"><a class="page-link" href="#" id="nextPage">Next</a></li>
+        </ul>
+    </nav>
+
+    <div class="button-container">
+        <!-- Export PDF Button -->
+        <button id="exportPdf" class="btn">Export PDF</button>
+      
+        <!-- Download Excel Button -->
+        <button id="downloadExcelBtn" class="btn">Download Excel</button>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.1/xlsx.full.min.js"></script>
+
+<!-- Firebase SDK (Firebase 8.x for non-modular approach) -->
+<script src="https://www.gstatic.com/firebasejs/8.9.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.9.1/firebase-database.js"></script>
+
+<script>
+    // Firebase configuration
+    const firebaseConfig = {
+      apiKey: "AIzaSyDUNmsrucT_ld6zM-nPLCehblrIvDC6Pog",
+      authDomain: "procurement-e1720.firebaseapp.com",
+      databaseURL: "https://procurement-e1720-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "procurement-e1720",
+      storageBucket: "procurement-e1720.firebasestorage.app",
+      messagingSenderId: "528279803951",
+      appId: "1:528279803951:web:4e6b4f9c4b08f4b3ea8eda",
+      measurementId: "G-T3HHDYSCK0"
+    };
+
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
+
+    // Add project data to Firebase
+    document.getElementById('addProjectBtn').addEventListener('click', function() {
+        // Get values from the input fields
+        const projectName = document.getElementById('projectName').value.trim();
+        const startDate = document.getElementById('startDate').value;
+        const status = document.getElementById('statusSelect').value;
+
+        // Basic validation
+        if (!projectName || !startDate || !status) {
+            alert("Please fill in all fields before adding the project.");
+            return;
+        }
+
+        // Validate startDate
+        const startDateObject = new Date(startDate);
+        if (isNaN(startDateObject)) {
+            alert("Invalid start date.");
+            return;
+        }
+
+        // Calculate deadline (based on status selection)
+        let deadline = new Date(startDateObject);
+        switch(status) {
+            case "Estimate":
+            case "Bidding Documents":
+                deadline.setDate(deadline.getDate() + 7);
+                break;
+            case "Procurement Schedule":
+                deadline.setDate(deadline.getDate() + 5);
+                break;
+            case "Bid Document Evaluation":
+                deadline.setDate(deadline.getDate() + 21);
+                break;
+            case "Bid Invitation":
+                deadline.setDate(deadline.getDate() + 5);
+                break;
+            case "Bid Document Hand Over":
+                deadline.setDate(deadline.getDate() + 14);
+                break;
+            case "Bid Opening & Committee Minute":
+                deadline.setDate(deadline.getDate() + 3);
+                break;
+            case "Send to TEC":
+                deadline.setDate(deadline.getDate() + 2);
+                break;
+            case "TEC Report":
+                deadline.setDate(deadline.getDate() + 14);
+                break;
+            case "Send Procurement Branch":
+                deadline.setDate(deadline.getDate() + 2);
+                break;
+            case "Procurement Approval":
+                deadline.setDate(deadline.getDate() + 14);
+                break;
+        }
+
+        // Prepare the data to be sent to Firebase
+        const projectData = {
+            name: projectName,
+            start_date: startDate,
+            status: status,
+            deadline: deadline.toISOString(), // Store deadline as ISO string
+            created_at: new Date().toISOString(), // Timestamp
+        };
+
+        // Save project data to Firebase Realtime Database
+        database.ref('projects/').push(projectData)
+            .then(() => {
+                alert("Project added successfully!");
+                // Clear the input fields
+                document.getElementById('projectName').value = '';
+                document.getElementById('startDate').value = '';
+                document.getElementById('statusSelect').selectedIndex = 0;
+            })
+            .catch((error) => {
+                console.error("Error adding project:", error);
+                alert("Failed to add project. Please try again.");
+            });
+    });
+</script>
+
+<script src="app.js"></script>
+</body>
+</html>
